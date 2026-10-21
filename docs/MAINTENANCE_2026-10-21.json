@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "repository_id": 1413184828,
+  "base_commit": "3f46b0b97ace141d8a5af828e65dbe1ee5ff8050",
+  "date": "2026-10-21",
+  "scope": "Authorized maintenance after the fixed migration acceptance; original MIGRATION.json is unchanged. No experiment allocation or promotional text changed.",
+  "changes": [
+    {
+      "path": "test_tool.py",
+      "original_sha256": "7e8a3afa92a2cf4837a56f036ffafe6ee2fba8b13bd6d5bf03e5f92e58ec57f3",
+      "current_sha256": "172d086574d1c3c0f9176827647878a18bcdc3d580ce2cfe7b599b4a1df2a509",
+      "reason": "Regression coverage and maintenance-receipt rejection tests."
+    },
+    {
+      "path": "tool.py",
+      "original_sha256": "f42945089bf87fa19703c8bdf510ec28e8509f3e83000540a72ca3fbd8875463",
+      "current_sha256": "80d2416943d9e98d06d187da3331d52dc4eeb5825d5e96a10e6c064bf8f5c1df",
+      "reason": "Reject noncanonical numeric-looking HTTP(S) hosts rather than misclassifying them as DNS suffixes in cookie scope checks."
+    }
+  ]
+}

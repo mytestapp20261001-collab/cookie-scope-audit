@@ -114,6 +114,27 @@ class CookieTests(unittest.TestCase):
     def test_ports_do_not_scope_cookies(self):
         d=fixture(); d['request_url']='https://app.example:444/account'
         self.assertTrue(tool.audit(d)['ok'])
+    def test_noncanonical_numeric_hosts_rejected(self):
+        for host in ('127.1', '10.1', '2130706433', '0177.0.0.1', '0x7f000001',
+                     '127.0.0.01', 'example.123', 'example.0x1'):
+            for endpoint_key in ('response_url', 'request_url'):
+                with self.subTest(host=host, endpoint_key=endpoint_key):
+                    d=fixture(); d[endpoint_key]='https://'+host+'/'
+                    with self.assertRaises(tool.InputError): tool.audit(d)
+        d=fixture(); d['set_cookie']='sid=private-marker; Domain=1; Path=/; Secure; SameSite=Lax'
+        d['response_url']='https://127.1/'
+        d['request_url']='https://10.1/'
+        run=subprocess.run([sys.executable,str(ROOT/'tool.py')],input=json.dumps(d),capture_output=True,text=True)
+        self.assertEqual(run.returncode,2,run.stdout+run.stderr)
+        self.assertEqual(run.stderr,'')
+        self.assertFalse(json.loads(run.stdout)['ok'])
+        self.assertNotIn('private-marker',run.stdout)
+
+    def test_numeric_labels_with_nonnumeric_tld_remain_dns(self):
+        d=fixture(); d['response_url']='https://123.example/'
+        d['request_url']='https://123.example/'
+        self.assertTrue(tool.audit(d)['ok'])
+
     def test_ip_not_suffix_domain(self):
         self.assertFalse(tool.domain_match('127.0.0.1','0.0.1'))
     def test_invalid_inputs(self):
@@ -157,4 +178,36 @@ class CookieTests(unittest.TestCase):
         for host in ['child.app.example','notapp.example','app.example.other']:
             d['request_url']='https://'+host+'/'
             self.assertFalse(tool.audit(d)['conditions']['request_domain'])
+
+class MaintenanceReceiptTests(unittest.TestCase):
+    def test_maintenance_receipt_is_fail_closed(self):
+        import copy
+        import importlib.util
+        root = Path(__file__).resolve().parent
+        spec = importlib.util.spec_from_file_location('release_validation', root / 'scripts/validate_release.py')
+        validation = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(validation)
+        record = json.loads((root / 'docs/MIGRATION.json').read_text())
+        receipt = json.loads((root / 'docs/MAINTENANCE_2026-10-21.json').read_text())
+        original = {entry['path']: entry['sha256'] for entry in record['preserved_files']}
+        self.assertEqual(validation.maintenance_hashes(record, None), original)
+        result = validation.maintenance_hashes(record, receipt)
+        for change in receipt['changes']:
+            self.assertEqual(result[change['path']], change['current_sha256'])
+        invalid = []
+        for field, value in [('path', '../tool.py'), ('path', 'README.md'),
+                             ('original_sha256', '0' * 64), ('current_sha256', 'invalid'), ('reason', '')]:
+            candidate = copy.deepcopy(receipt)
+            candidate['changes'][0][field] = value
+            invalid.append(candidate)
+        candidate = copy.deepcopy(receipt)
+        candidate['changes'].append(candidate['changes'][0].copy())
+        invalid.append(candidate)
+        candidate = copy.deepcopy(receipt)
+        candidate['repository_id'] = 0
+        invalid.append(candidate)
+        for candidate in invalid:
+            with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                validation.maintenance_hashes(record, candidate)
+
 if __name__=='__main__': unittest.main()

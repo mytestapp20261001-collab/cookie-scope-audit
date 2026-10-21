@@ -99,6 +99,11 @@ def endpoint(raw):
         # Compare IP literals by address identity, independent of textual IPv6 compression.
         try: host=str(ipaddress.ip_address(host))
         except ValueError:
+            # Browser URL parsers interpret hosts ending in a number as IPv4.
+            # This strict subset accepts only canonical IPs, never DNS suffixes
+            # for shorthand/octal/hexadecimal address spellings.
+            require(not re.fullmatch(r'(?:[0-9]+|0x[0-9a-f]*)', host.split('.')[-1]),
+                    'noncanonical numeric host unsupported')
             require(len(host)<=253 and all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in host.split('.')), 'unsupported DNS host')
         return u.scheme,host,u.path or '/'
     except (ValueError,TypeError) as exc:
